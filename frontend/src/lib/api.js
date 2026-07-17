@@ -14,14 +14,27 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  scoreResume: (formData) =>
-    fetch(`${API_BASE}/scans/score`, { method: 'POST', body: formData }).then((r) => r.json()),
+  scoreResume: async (formData) => {
+    const res = await fetch(`${API_BASE}/scans/score`, { method: 'POST', body: formData })
+    if (!res.ok) {
+      const detail = await res.json().catch(() => ({}))
+      throw new Error(detail.detail || `Scoring failed (${res.status})`)
+    }
+    return res.json()
+  },
   rewriteResume: (payload) =>
     request('/scans/rewrite', { method: 'POST', body: JSON.stringify(payload) }),
-  exportDocx: (payload) =>
-    fetch(`${API_BASE}/scans/export`, {
+  // Returns a Blob (the generated DOCX) rather than JSON.
+  exportDocx: async (payload) => {
+    const res = await fetch(`${API_BASE}/scans/export`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-    }),
+    })
+    if (!res.ok) {
+      const detail = await res.json().catch(() => ({}))
+      throw new Error(detail.detail || `Export failed (${res.status})`)
+    }
+    return res.blob()
+  },
 }

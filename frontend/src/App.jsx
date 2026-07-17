@@ -1,6 +1,7 @@
 import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/AuthContext'
+import { ScanProvider } from './lib/ScanContext'
 import Navbar from './components/Navbar'
 
 import Landing from './pages/Landing'
@@ -47,7 +48,9 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <ScanProvider>
+        <AppRoutes />
+      </ScanProvider>
     </AuthProvider>
   )
 }

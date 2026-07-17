@@ -1,25 +1,53 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ScanBeam from '../components/ScanBeam'
+import { api } from '../lib/api'
+import { useScan } from '../lib/ScanContext'
+import { useAuth } from '../lib/AuthContext'
 
 export default function NewScan() {
   const navigate = useNavigate()
+  const { updateScan } = useScan()
+  const { user } = useAuth()
   const [file, setFile] = useState(null)
+  const [jobTitle, setJobTitle] = useState('')
   const [jobDescription, setJobDescription] = useState('')
   const [scanning, setScanning] = useState(false)
+  const [error, setError] = useState('')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!file || !jobDescription.trim()) return
+    setError('')
     setScanning(true)
     try {
-      // Real call once the backend is running:
-      // const formData = new FormData()
-      // formData.append('resume', file)
-      // formData.append('job_description', jobDescription)
-      // const result = await api.scoreResume(formData)
-      await new Promise((r) => setTimeout(r, 1800)) // demo delay for the scan-beam motion
-      navigate('/scan/scan-1/results')
+      const formData = new FormData()
+      formData.append('resume', file)
+      formData.append('job_description', jobDescription)
+      formData.append('job_title', jobTitle || 'Untitled role')
+      formData.append('user_id', user?.id || 'anonymous')
+
+      const result = await api.scoreResume(formData)
+
+      updateScan({
+        jobTitle: jobTitle || 'Untitled role',
+        resumeText: result.resume_text,
+        score: result.score,
+        matched: result.matched_keywords,
+        missing: result.missing_keywords,
+        formattingFlags: result.formatting_flags,
+        summary: result.summary,
+        scanId: result.scan_id,
+        rows: null,
+        docxUrl: null,
+      })
+      navigate('/scan/current/results')
+    } catch (err) {
+      setError(
+        err.message?.includes('Failed to fetch')
+          ? "Couldn't reach the backend. Check VITE_API_BASE and that the API is running."
+          : err.message || 'Something went wrong scanning your resume.'
+      )
     } finally {
       setScanning(false)
     }
@@ -48,6 +76,15 @@ export default function NewScan() {
           </label>
         </div>
         <div>
+          <label className="block font-sans text-sm font-semibold mb-2">Job title (optional)</label>
+          <input
+            className="paper-input"
+            placeholder="e.g. Senior Data Analyst — Business Analysis"
+            value={jobTitle}
+            onChange={(e) => setJobTitle(e.target.value)}
+          />
+        </div>
+        <div>
           <label className="block font-sans text-sm font-semibold mb-2">Job description</label>
           <textarea
             className="paper-input min-h-[200px]"
@@ -57,6 +94,7 @@ export default function NewScan() {
             required
           />
         </div>
+        {error && <p className="font-mono text-sm text-amber-dim">{error}</p>}
         <button className="btn-primary w-full">Scan resume</button>
       </form>
     </div>
