@@ -4,9 +4,16 @@ import io
 
 from models import RewriteRequest, ExportRequest
 from services import resume_parser, claude_client, docx_generator
-from db import save_scan, save_rewrites
+from db import save_scan, save_rewrites, get_scans
 
 router = APIRouter(prefix="/scans", tags=["scans"])
+
+
+@router.get("")
+async def list_scans(user_id: str):
+    """Scan history for the dashboard. Returns [] if Supabase isn't
+    configured yet or the user has no scans — never errors on empty state."""
+    return get_scans(user_id)
 
 
 @router.post("/score")

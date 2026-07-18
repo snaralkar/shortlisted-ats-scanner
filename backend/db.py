@@ -34,6 +34,22 @@ def save_scan(user_id: str, job_title: str, result: dict) -> dict | None:
     return db.table("scans").insert(row).execute().data
 
 
+def get_scans(user_id: str) -> list[dict]:
+    """Returns the user's past scans, most recent first. Empty list (not an
+    error) if Supabase isn't configured or the user has no scans yet."""
+    db = get_db()
+    if db is None:
+        return []
+    result = (
+        db.table("scans")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return result.data or []
+
+
 def save_rewrites(scan_id: str, rows: list[dict]) -> dict | None:
     db = get_db()
     if db is None:

@@ -21,6 +21,11 @@ app.add_middleware(
 app.include_router(scans.router)
 
 
+@app.get("/")
+def root():
+    return {"service": "Shortlisted API", "status": "ok", "docs": "/docs"}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}

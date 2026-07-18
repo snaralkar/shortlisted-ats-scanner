@@ -74,7 +74,7 @@ PRE-DETECTED FORMATTING FLAGS (include these verbatim in your formatting_flags l
 {json.dumps(formatting_flags)}"""
 
     message = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-sonnet-5",
         max_tokens=1500,
         system=SCORING_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_prompt}],
@@ -91,7 +91,7 @@ MISSING KEYWORDS TO WORK IN WHERE TRUTHFUL:
 {json.dumps(missing_keywords)}"""
 
     message = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-sonnet-5",
         max_tokens=2000,
         system=REWRITE_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_prompt}],

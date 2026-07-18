@@ -14,6 +14,8 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  getScans: (userId) =>
+    request(`/scans?user_id=${encodeURIComponent(userId)}`),
   scoreResume: async (formData) => {
     const res = await fetch(`${API_BASE}/scans/score`, { method: 'POST', body: formData })
     if (!res.ok) {
