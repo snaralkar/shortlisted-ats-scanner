@@ -57,7 +57,7 @@ def _provider() -> str:
 # ---------------------------------------------------------------- Gemini ---
 
 def _gemini_generate(system_prompt: str, user_prompt: str) -> dict:
-    from google import genai
+    import httpx
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -65,12 +65,20 @@ def _gemini_generate(system_prompt: str, user_prompt: str) -> dict:
             "GEMINI_API_KEY is not set. Add it to backend/.env (see .env.example). "
             "Get a free key at https://ai.google.dev"
         )
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=f"{system_prompt}\n\n{user_prompt}",
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-2.0-flash:generateContent?key={api_key}"
     )
-    return _clean_json(response.text)
+    payload = {
+        "contents": [{"parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}]}],
+        "generationConfig": {"temperature": 0.4},
+    }
+    resp = httpx.post(url, json=payload, timeout=60)
+    if resp.status_code != 200:
+        raise RuntimeError(f"Gemini API error {resp.status_code}: {resp.text}")
+    data = resp.json()
+    text = data["candidates"][0]["content"]["parts"][0]["text"]
+    return _clean_json(text)
 
 
 # -------------------------------------------------------------- Anthropic --
