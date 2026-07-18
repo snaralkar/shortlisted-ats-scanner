@@ -1,22 +1,11 @@
-"""Wraps calls to the Anthropic API for scoring and rewriting."""
+"""AI layer for scoring + rewriting.
+
+Uses Google Gemini's free tier by default (GEMINI_API_KEY). If you'd rather
+use Anthropic's Claude API instead (e.g. once you've added credits), set
+ANTHROPIC_API_KEY and AI_PROVIDER=anthropic — no other code changes needed.
+"""
 import json
 import os
-from anthropic import Anthropic
-
-_client: Anthropic | None = None
-
-
-def get_client() -> Anthropic:
-    global _client
-    if _client is None:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "ANTHROPIC_API_KEY is not set. Add it to backend/.env (see .env.example)."
-            )
-        _client = Anthropic(api_key=api_key)
-    return _client
-
 
 SCORING_SYSTEM_PROMPT = """You are an ATS (Applicant Tracking System) matching engine.
 
@@ -52,8 +41,7 @@ Return STRICT JSON only, no preamble, no markdown fences, in exactly this shape:
 {"rewrites": [{"original": "...", "rewritten": "...", "reason": "..."}]}"""
 
 
-def _parse_json_response(message) -> dict:
-    text = "".join(block.text for block in message.content if block.type == "text")
+def _clean_json(text: str) -> dict:
     text = text.strip()
     if text.startswith("```"):
         text = text.strip("`")
@@ -62,8 +50,51 @@ def _parse_json_response(message) -> dict:
     return json.loads(text)
 
 
+def _provider() -> str:
+    return os.environ.get("AI_PROVIDER", "gemini").lower()
+
+
+# ---------------------------------------------------------------- Gemini ---
+
+def _gemini_generate(system_prompt: str, user_prompt: str) -> dict:
+    from google import genai
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not set. Add it to backend/.env (see .env.example). "
+            "Get a free key at https://ai.google.dev"
+        )
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=f"{system_prompt}\n\n{user_prompt}",
+    )
+    return _clean_json(response.text)
+
+
+# -------------------------------------------------------------- Anthropic --
+
+def _anthropic_generate(system_prompt: str, user_prompt: str, max_tokens: int) -> dict:
+    from anthropic import Anthropic
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY is not set. Add it to backend/.env.")
+    client = Anthropic(api_key=api_key)
+    message = client.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=max_tokens,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+    text = "".join(block.text for block in message.content if block.type == "text")
+    return _clean_json(text)
+
+
+# ------------------------------------------------------------- public API --
+
 def score_resume(resume_text: str, job_description: str, formatting_flags: list[str]) -> dict:
-    client = get_client()
     user_prompt = f"""RESUME TEXT:
 {resume_text}
 
@@ -73,27 +104,18 @@ JOB DESCRIPTION:
 PRE-DETECTED FORMATTING FLAGS (include these verbatim in your formatting_flags list, plus any you notice):
 {json.dumps(formatting_flags)}"""
 
-    message = client.messages.create(
-        model="claude-sonnet-5",
-        max_tokens=1500,
-        system=SCORING_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
-    return _parse_json_response(message)
+    if _provider() == "anthropic":
+        return _anthropic_generate(SCORING_SYSTEM_PROMPT, user_prompt, max_tokens=1500)
+    return _gemini_generate(SCORING_SYSTEM_PROMPT, user_prompt)
 
 
 def rewrite_resume(resume_text: str, missing_keywords: list[str]) -> dict:
-    client = get_client()
     user_prompt = f"""RESUME TEXT:
 {resume_text}
 
 MISSING KEYWORDS TO WORK IN WHERE TRUTHFUL:
 {json.dumps(missing_keywords)}"""
 
-    message = client.messages.create(
-        model="claude-sonnet-5",
-        max_tokens=2000,
-        system=REWRITE_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
-    return _parse_json_response(message)
+    if _provider() == "anthropic":
+        return _anthropic_generate(REWRITE_SYSTEM_PROMPT, user_prompt, max_tokens=2000)
+    return _gemini_generate(REWRITE_SYSTEM_PROMPT, user_prompt)
